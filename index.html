@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WebShell</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="terminal" id="terminal">
+    <div class="terminal__bar">
+      <span class="terminal__dot terminal__dot--red"></span>
+      <span class="terminal__dot terminal__dot--yellow"></span>
+      <span class="terminal__dot terminal__dot--green"></span>
+      <span class="terminal__title">guest@webshell: ~</span>
+    </div>
+    <div class="terminal__body" id="output">
+      <div class="line">Welcome to <span class="accent">WebShell</span> v1.0.0</div>
+      <div class="line">Type <span class="accent">help</span> to see available commands.</div>
+      <div class="line">&nbsp;</div>
+    </div>
+    <div class="terminal__input-line">
+      <span class="prompt" id="prompt">guest@webshell:~$</span>
+      <input
+        type="text"
+        id="input"
+        class="terminal__input"
+        autocomplete="off"
+        autofocus
+        spellcheck="false"
+      />
+    </div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>
