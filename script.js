@@ -88,6 +88,34 @@
     return /^[A-Za-z0-9._-]+$/.test(name);
   }
 
+  // Map WMO weather codes to a short description + emoji.
+  function weatherCodeDescription(code) {
+    const map = {
+      0: "☀️ Clear",
+      1: "🌤️ Mainly clear",
+      2: "⛅ Partly cloudy",
+      3: "☁️ Overcast",
+      45: "🌫️ Fog",
+      48: "🌫️ Rime fog",
+      51: "🌦️ Light drizzle",
+      53: "🌦️ Drizzle",
+      55: "🌦️ Dense drizzle",
+      61: "🌧️ Light rain",
+      63: "🌧️ Rain",
+      65: "🌧️ Heavy rain",
+      71: "🌨️ Light snow",
+      73: "🌨️ Snow",
+      75: "🌨️ Heavy snow",
+      80: "🌦️ Rain showers",
+      81: "🌦️ Rain showers",
+      82: "⛈️ Violent rain showers",
+      95: "⛈️ Thunderstorm",
+      96: "⛈️ Thunderstorm w/ hail",
+      99: "⛈️ Thunderstorm w/ hail",
+    };
+    return map[code] || "Unknown";
+  }
+
   function escapeHtml(str) {
     return str
       .replace(/&/g, "&amp;")
@@ -104,9 +132,9 @@
         .sort()
         .map(
           (name) =>
-            `<span class="name">${name}</span><span>${
+            `<span class="name">${name}</span><span>${escapeHtml(
               commandHelp[name] || ""
-            }</span>`
+            )}</span>`
         )
         .join("");
       print(`<div class="help-grid">${rows}</div>`);
@@ -267,14 +295,59 @@
       const city = args.join(" ").trim() || "Berlin";
       print(`Fetching weather for ${escapeHtml(city)}...`, "muted");
       try {
-        const res = await fetch(
-          `https://wttr.in/${encodeURIComponent(city)}?format=%l:+%c+%t+(feels+%f),+%h+humidity,+wind+%w`
+        // 1. Geocode the city name -> coordinates (CORS-enabled JSON API)
+        const geoRes = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(
+            city
+          )}&count=1&language=en&format=json`
         );
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const text = (await res.text()).trim();
-        print(escapeHtml(text), "success");
+        if (!geoRes.ok) throw new Error("geocoding HTTP " + geoRes.status);
+        const geo = await geoRes.json();
+        if (!geo.results || geo.results.length === 0) {
+          print(`weather: city not found: ${escapeHtml(city)}`, "error");
+          return;
+        }
+        const place = geo.results[0];
+        const current =
+          "temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,weather_code";
+
+        // 2. Fetch current weather in both Celsius and Fahrenheit
+        const [wxC, wxF] = await Promise.all([
+          fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=${current}`
+          ).then((r) => {
+            if (!r.ok) throw new Error("forecast HTTP " + r.status);
+            return r.json();
+          }),
+          fetch(
+            `https://api.open-meteo.com/v1/forecast?latitude=${place.latitude}&longitude=${place.longitude}&current=${current}&temperature_unit=fahrenheit`
+          ).then((r) => {
+            if (!r.ok) throw new Error("forecast HTTP " + r.status);
+            return r.json();
+          }),
+        ]);
+
+        const c = wxC.current;
+        const f = wxF.current;
+
+        const label = [place.name, place.admin1, place.country]
+          .filter(Boolean)
+          .join(", ");
+        const desc = weatherCodeDescription(c.weather_code);
+
+        print(
+          `${escapeHtml(label)}: ${desc} ` +
+            `${c.temperature_2m}°C / ${f.temperature_2m}°F ` +
+            `(feels ${c.apparent_temperature}°C / ${f.apparent_temperature}°F), ` +
+            `${c.relative_humidity_2m}% humidity, ` +
+            `wind ${c.wind_speed_10m} ${wxC.current_units.wind_speed_10m}`,
+          "success"
+        );
       } catch (e) {
-        print(`weather: could not fetch weather (${escapeHtml(String(e.message))})`, "error");
+        print(
+          `weather: could not fetch weather (${escapeHtml(String(e.message))})`,
+          "error"
+        );
       }
     },
 
